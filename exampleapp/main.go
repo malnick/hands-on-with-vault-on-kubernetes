@@ -2,11 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	rice "github.com/GeertJohan/go.rice"
@@ -15,7 +13,6 @@ import (
 	"github.com/graarh/golang-socketio/transport"
 )
 
-var secretConfigFile string
 var port string
 
 type Config struct {
@@ -31,8 +28,6 @@ type Secret struct {
 func main() {
 	port = getEnvOrDefault("PORT", "80")
 	portWithColon := fmt.Sprintf(":%s", port)
-
-	secretConfigFile = getEnvOrDefault("CONFIG_FILE", "/etc/exampleapp/config")
 
 	fmt.Printf("Starting server on http://0.0.0.0:%s\n", port)
 	fmt.Println("(Pass as PORT environment variable)")
@@ -75,7 +70,7 @@ func handleConnection(c *gosocketio.Channel) {
 }
 
 func handleSend(c *gosocketio.Channel, msg Config) string {
-	config, err := getSecretDataFromFile(secretConfigFile)
+	config, err := getSecretDataFromVault()
 	fmt.Println(config)
 
 	if err != nil {
@@ -86,20 +81,14 @@ func handleSend(c *gosocketio.Channel, msg Config) string {
 	return "OK"
 }
 
-func getSecretDataFromFile(c string) (Config, error) {
-	t, err := ioutil.ReadFile(c)
-	if err != nil {
-		return Config{}, err
+func getSecretDataFromVault() (Config, error) {
+	c := Config{}
+	token, ok := os.LookupEnv("VAULT_TOKEN")
+	if !ok {
+		return c, fmt.Errorf("unable to get token from env")
 	}
 
-	var s []Secret
-
-	for _, cf := range strings.Split(string(t), "\n") {
-		sp := strings.Split(cf, "=")
-		if len(sp) > 1 {
-			s = append(s, Secret{Username: sp[0], Password: sp[1]})
-		}
-	}
+	// get secrets from vault using lib
 
 	return Config{Secrets: s, Message: "ok"}, nil
 }
