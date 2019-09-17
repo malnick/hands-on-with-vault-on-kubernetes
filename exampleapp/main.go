@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	gosocketio "github.com/graarh/golang-socketio"
 	"github.com/graarh/golang-socketio/transport"
+	"github.com/hashicorp/vault/api"
 )
 
 var port string
@@ -88,7 +89,27 @@ func getSecretDataFromVault() (Config, error) {
 		return c, fmt.Errorf("unable to get token from env")
 	}
 
-	// get secrets from vault using lib
+	vc := api.DefaultConfig()
+	vault, err := api.NewClient(vc)
+	if err != nil {
+		return c, err
+	}
 
-	return Config{Secrets: s, Message: "ok"}, nil
+	vault.SetToken(token)
+	logical := vault.Logical()
+	s, err := logical.Read("secret/data/exampleapp/config")
+	if err != nil {
+		return c, err
+	}
+
+	fmt.Printf("got secrets %+v", s.Data)
+	secret := Secret{}
+	username, ok := s.Data["username"]
+	if !ok {
+		return c, fmt.Errorf("username empty")
+	}
+
+	secret.Username = username.(string)
+
+	return Config{Secrets: []Secret{secret}, Message: "ok"}, nil
 }
